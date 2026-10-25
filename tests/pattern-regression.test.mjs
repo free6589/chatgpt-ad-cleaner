@@ -87,7 +87,7 @@ test('offer CTA patterns match current English and Simplified Chinese labels', (
 test('upgrade CTA and plan badge patterns match current English and Simplified Chinese labels', () => {
   assertMatches(getRegex('UPGRADE_CTA_RE'), [
     'Upgrade to Plus', 'Upgrade to ChatGPT Pro', '升级至 Plus',
-    '升级到 ChatGPT Pro', '立即升级'
+    '升级至 ChatGPT Pro', '立即升级'
   ], 'upgrade CTA');
   assertMatches(getRegex('PLAN_BADGE_RE'), [
     'Free', 'Free plan', '免费版', '免费套餐', '免费计划'
@@ -145,6 +145,7 @@ test('report known localization gaps without making the current baseline fail', 
   const upgrade = getRegex('UPGRADE_CTA_RE');
   const checks = [
     ['Traditional Chinese', '免費試用 Plus', '升級至 Plus'],
+    ['Simplified Chinese variant', '免费试用 Plus', '升级到 Plus'],
     ['Japanese', '無料トライアルを開始', 'Plusにアップグレード'],
     ['Korean', '무료 체험 시작', 'Plus로 업그레이드'],
     ['French', 'Commencer un essai gratuit', 'Passer à Plus'],
