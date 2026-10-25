@@ -30,6 +30,16 @@ Everything else stays exactly the same: your chats, the message box, the sidebar
 
 ---
 
+## Also: turns "Think" on for you
+
+Free accounts have a **Think** button in the message box, and every new chat starts with it switched off.
+
+The add-on switches it on automatically, so your first message already uses the slower, more careful reasoning mode.
+
+If you turn it off yourself, it stays off for that chat — the script only sets it once.
+
+---
+
 ## Install (about 2 minutes)
 
 **Step 1.** Install the browser extension that runs these small scripts.
@@ -62,7 +72,7 @@ If you want to be sure the script is loaded, press `F12`, open the **Console** t
 document.documentElement.dataset.chgptScript
 ```
 
-It should print the version number, for example `"2.1.0"`.
+It should print the version number, for example `"2.2.0"`.
 
 ---
 
@@ -87,6 +97,11 @@ Open the Tampermonkey dashboard, find **ChatGPT Ad Cleaner** and click **Delete*
 
 **My ChatGPT is not in English. Does it still work?**
 Yes. The big blocks — the offer button in the sidebar, the plan badge under your name, the upgrade card above the message box and the reminder in the top bar — are found by their position on the page, so their wording does not matter. The buttons themselves are also recognised in many languages, not only English.
+
+**Will it make ChatGPT slower?**
+No. It only looks at the parts of the page that changed, and it skips the reply text completely while an answer is being written. One check takes about a millisecond.
+
+If a page ever feels heavy anyway, open the console and run `__chgptCleaner.pause()` to stop it, or `__chgptCleaner.resume()` to start it again.
 
 **Does it collect any data?**
 No. The script has no network requests of its own, no analytics and no tracking. It only changes what is displayed in your own browser.

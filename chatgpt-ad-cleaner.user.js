@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      2.1.1
-// @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, and restores the normal file-upload menu.
+// @version      2.2.0
+// @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, restores the normal file-upload menu, and turns "Think" on automatically.
 // @author       free6589
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -14,9 +14,12 @@
 (() => {
     'use strict';
 
-    const VERSION = '2.1.1';
+    const VERSION = '2.2.0';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
+
+    const state = { paused: false };
+    const stats = { scans: 0, lastScanMs: 0 };
 
     // Do nothing on pricing / checkout pages.
     if (/\/(pricing|checkout|subscription|plans)(\/|$)/i.test(location.pathname)) {
@@ -267,6 +270,10 @@
 
     // The composer and its form: never hide anything that contains them.
     const COMPOSER_ANCHOR = '[contenteditable="true"], #prompt-textarea, form';
+
+    // Only these can be an ad block on their own. Sweeping every div on the
+    // page was far too expensive while a reply is streaming in.
+    const SWEEP_SELECTOR = 'button, a, [role="button"], [role="status"], [role="alert"], [data-testid]';
 
     const BLOCK_SELECTOR = [
         'button',
@@ -851,7 +858,11 @@
      * ------------------------------------------------------------------ */
 
     // The profile button at the bottom of the sidebar: holds an avatar image.
+    let cachedProfile = null;
+
     function findProfileButton() {
+        if (cachedProfile && cachedProfile.isConnected) return cachedProfile;
+
         const buttons = document.querySelectorAll('button[aria-haspopup="menu"], button[aria-expanded]');
         let best = null;
 
@@ -869,6 +880,7 @@
             }
         }
 
+        cachedProfile = best;
         return best;
     }
 
@@ -928,8 +940,14 @@
     // label that talks about a plan.
     const CHIP_UPSELL_RE = /(?:\u5347\u7EA7|\u8BA2\u9605|\u83B7\u53D6|plus|pro|upgrade|subscribe|abonn|suscrib|assin|abbon|\u30A2\u30C3\u30D7\u30B0\u30EC\u30FC\u30C9|\uAD6C\uB3C5|\u043F\u043E\u0434\u043F\u0438\u0441)/i;
 
-    function hideSidebarUpsellChips() {
-        const rows = document.querySelectorAll('[class*="sidebar-item"], nav [class*="min-w-0 flex-1"]');
+    function hideSidebarUpsellChips(profile) {
+        if (!profile) return;
+
+        const scope = profile.closest('nav, aside, [class*="sidebar"]') || profile.parentElement;
+
+        if (!scope) return;
+
+        const rows = scope.querySelectorAll('[class*="sidebar-item"]');
 
         for (const row of rows) {
             for (const btn of row.querySelectorAll('button, a')) {
@@ -1008,40 +1026,93 @@
         }
     }
 
-    function scanRoot(root) {
+    /* ------------------------------------------------------------------
+     * 4c) Turn "Think" on automatically
+     *
+     * Free accounts get the "Think" toggle in the composer, but it starts
+     * off on every new chat. We switch it on once per composer, and never
+     * argue with the user: if they turn it off by hand we leave it alone
+     * until the composer is re-created.
+     * ------------------------------------------------------------------ */
+    const THINK_LABELS = [
+        '\u601D\u8003', 'think', 'pensar', 'r\u00E9fl\u00E9chir', 'reflechir', 'denken', 'pensare', 'ragiona',
+        '\u8003\u3048\u308B', '\uC0DD\uAC01', '\u0440\u0430\u0437\u043C\u044B\u0448\u043B\u0435\u043D\u0438\u0435', '\u0434\u0443\u043C\u0430\u0442\u044C', 'nadenken', 'my\u015Bl', 'd\u00FC\u015F\u00FCn', 'berpikir',
+        'suy ngh\u0129', '\u0E04\u0E34\u0E14', '\u062A\u0641\u0643\u064A\u0631', '\u0938\u094B\u091A\u0947\u0902'
+    ];
+
+    const thinkAttempts = new WeakMap();
+
+    function autoEnableThinking() {
+        const buttons = document.querySelectorAll('form button[aria-pressed="false"]');
+
+        for (const btn of buttons) {
+            if (!btn.getClientRects().length) continue;
+            if (btn.disabled) continue;
+
+            const text = normalize(btn.textContent).toLowerCase();
+
+            if (!text) continue;
+            if (THINK_LABELS.indexOf(text) === -1) continue;
+            if (!btn.closest('form')) continue;
+
+            const attempts = thinkAttempts.get(btn) || 0;
+
+            if (attempts >= 3) continue;
+
+            thinkAttempts.set(btn, attempts + 1);
+
+            try {
+                btn.click();
+                console.info(LOG_PREFIX + ' thinking mode on');
+            } catch (e) { /* ignore */ }
+        }
+    }
+
+    function scanRoot(root, deep) {
+        if (state.paused) return;
         if (!root || !root.isConnected) return;
 
-        hideDisclaimers(root);
-        hideComposerPromo(root);
+        const started = Date.now();
+        const full = !!deep || root === document.body;
+
+        stats.scans++;
+
         hideOfferButtons(root);
-        hidePlanBadges(root);
-        hideUploadLimitRows(root);
+        hideComposerPromo(root);
         hideStatusPromoCards(root);
         hideUpsellReminders(root);
+        hideUploadLimitRows(root);
+
+        // These two walk a lot of text. On a huge root they only run during a
+        // full pass; on a small subtree they always run.
+        if (full || root !== document.body) {
+            hidePlanBadges(root);
+            hideDisclaimers(root);
+        }
 
         const profile = findProfileButton();
 
         if (profile) {
             hidePlanBadgeUnderProfile(profile);
             hideSidebarOfferSlot(profile);
+            hideSidebarUpsellChips(profile);
         }
 
-        hideSidebarUpsellChips();
+        autoEnableThinking();
 
         const elements = [];
 
-        if (root.nodeType === Node.ELEMENT_NODE && root.matches(BLOCK_SELECTOR)) {
+        if (root.nodeType === Node.ELEMENT_NODE && root.matches(SWEEP_SELECTOR)) {
             elements.push(root);
         }
 
         if (root.querySelectorAll) {
-            elements.push(...root.querySelectorAll(BLOCK_SELECTOR));
+            elements.push(...root.querySelectorAll(SWEEP_SELECTOR));
         }
-
-        elements.sort((a, b) => getText(a).length - getText(b).length);
 
         for (const el of elements) {
             if (!el.isConnected) continue;
+            if (el.getAttribute(HIDDEN_ATTR) === '1') continue;
             if (isExcluded(el)) continue;
             if (!hasPromoCopy(el)) continue;
 
@@ -1059,6 +1130,8 @@
                 hideElement(el);
             }
         }
+
+        stats.lastScanMs = Date.now() - started;
     }
 
     /* ------------------------------------------------------------------
@@ -1069,9 +1142,21 @@
     const pendingRoots = new Set();
 
     function queueScan(node) {
-        if (!node) return;
+        if (!node || state.paused) return;
 
         let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+
+        if (!el) return;
+
+        // A streaming reply changes the DOM hundreds of times per second and
+        // never contains an ad. Skipping that subtree is what keeps the page
+        // responsive; if a button shows up inside a message we still look.
+        const inMessage = el.closest ? el.closest(EXCLUDED_SELECTOR) : null;
+
+        if (inMessage && !(el.querySelector && el.querySelector('button, a, [role="button"]'))) {
+            return;
+        }
+
         let depth = 0;
 
         while (
@@ -1111,12 +1196,14 @@
             const roots = [...pendingRoots];
             pendingRoots.clear();
 
+            const fullPass = roots.indexOf(document.body) !== -1 && roots.length === 1;
+
             for (const root of roots) {
-                scanRoot(root);
+                scanRoot(root, fullPass);
             }
 
             logStatus('scan finished');
-        }, 200);
+        }, 400);
     }
 
     function injectStyle() {
@@ -1148,28 +1235,52 @@
     }
 
     let lastLoggedCount = -1;
+    let lastLoggedAt = 0;
 
     function logStatus(stage) {
         try {
+            const now = Date.now();
             const count = document.querySelectorAll('[' + HIDDEN_ATTR + '="1"]').length;
 
             document.documentElement.setAttribute('data-chgpt-hidden-count', String(count));
 
+            // At most one line every 10 seconds, and only when the number
+            // actually changed - the console used to fill up on its own.
             if (count === lastLoggedCount) return;
+            if (now - lastLoggedAt < 10000) return;
 
             lastLoggedCount = count;
+            lastLoggedAt = now;
 
-            console.info(LOG_PREFIX + ' v' + VERSION + ' running (' + stage + '), hidden: ' + count);
+            console.info(
+                LOG_PREFIX + ' v' + VERSION + ' running, hidden: ' + count +
+                ' (' + stats.scans + ' scans, last ' + stats.lastScanMs + 'ms)'
+            );
         } catch (e) { /* ignore */ }
     }
 
     function start() {
         stampVersion();
+
+        // Small handle so the user can stop it from the console if a page
+        // ever feels slow: __chgptCleaner.pause()
+        try {
+            window.__chgptCleaner = {
+                version: VERSION,
+                stats,
+                pause() { state.paused = true; },
+                resume() {
+                    state.paused = false;
+                    cachedProfile = null;
+                    queueScan(document.body);
+                }
+            };
+        } catch (e) { /* ignore */ }
         logStatus('startup');
         injectStyle();
 
         const begin = () => {
-            scanRoot(document.body);
+            scanRoot(document.body, true);
             logStatus('first scan');
 
             const observer = new MutationObserver(records => {
@@ -1190,11 +1301,6 @@
                         continue;
                     }
 
-                    if (record.type === 'characterData') {
-                        queueScan(record.target.parentElement);
-                        continue;
-                    }
-
                     for (const node of record.addedNodes) {
                         if (
                             node.nodeType === Node.ELEMENT_NODE ||
@@ -1209,13 +1315,15 @@
             observer.observe(document.body, {
                 subtree: true,
                 childList: true,
-                characterData: true,
                 attributes: true,
                 attributeFilter: ['style']
             });
 
             // Re-scan after an in-page navigation.
-            const rescan = () => queueScan(document.body);
+            const rescan = () => {
+                cachedProfile = null;
+                queueScan(document.body);
+            };
 
             for (const method of ['pushState', 'replaceState']) {
                 const original = history[method];
@@ -1228,6 +1336,9 @@
             }
 
             window.addEventListener('popstate', rescan);
+
+            // Cheap safety net for a toggle that is rendered late.
+            window.setInterval(autoEnableThinking, 2500);
         };
 
         // Wait until ChatGPT has rendered once, so we never break the first paint.
