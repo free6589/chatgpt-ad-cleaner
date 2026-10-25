@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      2.2.0
+// @version      2.2.1
 // @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, restores the normal file-upload menu, and turns "Think" on automatically.
 // @author       free6589
 // @match        https://chatgpt.com/*
@@ -14,7 +14,7 @@
 (() => {
     'use strict';
 
-    const VERSION = '2.2.0';
+    const VERSION = '2.2.1';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
 
@@ -1235,22 +1235,23 @@
     }
 
     let lastLoggedCount = -1;
-    let lastLoggedAt = 0;
+    let lastStatusCheckAt = 0;
 
-    function logStatus(stage) {
+    function logStatus() {
         try {
             const now = Date.now();
-            const count = document.querySelectorAll('[' + HIDDEN_ATTR + '="1"]').length;
 
+            // This function is called after scans, potentially many times. Avoid
+            // querying the entire document on every call just to update diagnostics.
+            if (now - lastStatusCheckAt < 10000) return;
+            lastStatusCheckAt = now;
+
+            const count = document.querySelectorAll('[' + HIDDEN_ATTR + '="1"]').length;
             document.documentElement.setAttribute('data-chgpt-hidden-count', String(count));
 
-            // At most one line every 10 seconds, and only when the number
-            // actually changed - the console used to fill up on its own.
+            // Log only when the count changes, and check that count at most every 10s.
             if (count === lastLoggedCount) return;
-            if (now - lastLoggedAt < 10000) return;
-
             lastLoggedCount = count;
-            lastLoggedAt = now;
 
             console.info(
                 LOG_PREFIX + ' v' + VERSION + ' running, hidden: ' + count +
@@ -1283,23 +1284,12 @@
             scanRoot(document.body, true);
             logStatus('first scan');
 
+            // Only watch DOM insertions. Observing every inline style change across
+            // the page creates extra callbacks during React layout/streaming updates.
+            // The injected CSS rule keeps marked elements hidden after re-renders.
             const observer = new MutationObserver(records => {
                 for (const record of records) {
-                    if (record.type === 'attributes') {
-                        // React re-renders can drop the inline style: put it back.
-                        const target = record.target;
-
-                        if (
-                            target &&
-                            target.nodeType === Node.ELEMENT_NODE &&
-                            target.getAttribute(HIDDEN_ATTR) === '1' &&
-                            target.style.getPropertyValue('display') !== 'none'
-                        ) {
-                            target.style.setProperty('display', 'none', 'important');
-                        }
-
-                        continue;
-                    }
+                    if (record.type !== 'childList') continue;
 
                     for (const node of record.addedNodes) {
                         if (
@@ -1314,9 +1304,7 @@
 
             observer.observe(document.body, {
                 subtree: true,
-                childList: true,
-                attributes: true,
-                attributeFilter: ['style']
+                childList: true
             });
 
             // Re-scan after an in-page navigation.
@@ -1337,8 +1325,8 @@
 
             window.addEventListener('popstate', rescan);
 
-            // Cheap safety net for a toggle that is rendered late.
-            window.setInterval(autoEnableThinking, 2500);
+            // autoEnableThinking() also runs during the initial and mutation-triggered
+            // scans, so a permanent polling timer is unnecessary.
         };
 
         // Wait until ChatGPT has rendered once, so we never break the first paint.
