@@ -14,6 +14,13 @@ It works whatever language your ChatGPT is set to: the ad blocks are found by wh
 
 ---
 
+## What's new
+
+- **v2.2.1:** Reduce page overhead by observing DOM insertions only, removing unnecessary Think polling, and limiting full-page diagnostic counts to once every 10 seconds.
+- **v2.2.0:** Automatically enable the Think button for new chats and reduce scanning work during streamed replies.
+
+---
+
 ## What it hides
 
 | What you see on the page | What happens after installing |
