@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatGPT Ad Cleaner — hide the upgrade ads</title>
+<meta name="description" content="A small browser add-on that hides the upgrade ads on ChatGPT. Install in two minutes.">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1f2023;
+    --muted: #6b6f76;
+    --line: #e5e6e9;
+    --accent: #0d8a5f;
+    --accent-hover: #0a6f4c;
+    --card: #f7f8fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181b;
+      --fg: #ececf1;
+      --muted: #9aa0a6;
+      --line: #2c2e33;
+      --accent: #1fa87a;
+      --accent-hover: #25c08b;
+      --card: #1f2125;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 20px 80px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 40px; }
+  h1 { font-size: 40px; line-height: 1.15; margin: 0 0 14px; letter-spacing: -0.02em; }
+  .lede { font-size: 18px; color: var(--muted); margin: 0 auto; max-width: 560px; }
+  .install {
+    display: inline-flex; align-items: center; gap: 10px;
+    margin: 28px 0 10px; padding: 16px 34px;
+    background: var(--accent); color: #fff; text-decoration: none;
+    border-radius: 999px; font-size: 18px; font-weight: 600;
+    transition: background .15s ease, transform .15s ease;
+  }
+  .install:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .hint { color: var(--muted); font-size: 14px; margin: 0; }
+  section { margin-top: 48px; }
+  h2 { font-size: 22px; margin: 0 0 16px; }
+  ul { margin: 0; padding-left: 22px; }
+  li { margin: 8px 0; }
+  .shots { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .shots figure { margin: 0; }
+  .shots img { width: 100%; border: 1px solid var(--line); border-radius: 12px; display: block; }
+  .shots figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; text-align: center; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; }
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li { counter-increment: step; position: relative; padding-left: 42px; margin: 14px 0; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  code { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 14px; }
+  footer { margin-top: 56px; text-align: center; color: var(--muted); font-size: 14px; }
+  a { color: var(--accent); }
+  @media (max-width: 640px) {
+    body { padding-top: 36px; }
+    h1 { font-size: 30px; }
+    .shots { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>ChatGPT Ad Cleaner</h1>
+    <p class="lede">A small browser add-on that hides the upgrade ads on ChatGPT. Install it once, then forget about it.</p>
+    <a class="install" href="https://raw.githubusercontent.com/free6589/chatgpt-ad-cleaner/main/chatgpt-ad-cleaner.user.js">
+      ⬇ Install
+    </a>
+    <p class="hint">Requires the free Tampermonkey extension. Two minutes, no account needed.</p>
+  </header>
+
+  <section>
+    <div class="shots">
+      <figure>
+        <img src="assets/illustration.svg" alt="Illustration: the offer buttons and the upgrade card are crossed out">
+        <figcaption>Illustration — these three blocks are what the add-on hides</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <h2>What gets removed</h2>
+    <div class="card">
+      <ul>
+        <li>The <strong>“Get offer”</strong> button at the bottom of the sidebar</li>
+        <li>The <strong>“Free offer”</strong> button in the top-right corner</li>
+        <li>The <strong>“Free”</strong> label under your name</li>
+        <li>The <strong>“ChatGPT can make mistakes…”</strong> line</li>
+        <li>The upgrade card above the message box</li>
+        <li>The <strong>“upgrade for more uploads”</strong> row in the <strong>+</strong> menu — “Upload from computer” comes back</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>How to install</h2>
+    <div class="card">
+      <ol class="steps">
+        <li>Install <a href="https://www.tampermonkey.net/">Tampermonkey</a> for your browser (Chrome, Edge, Firefox or Safari).</li>
+        <li>Come back to this page and click the green <strong>Install</strong> button.</li>
+        <li>Tampermonkey shows a page with the script — click <strong>Install</strong>.</li>
+        <li>Open or refresh <a href="https://chatgpt.com">chatgpt.com</a>. Done.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>Good to know</h2>
+    <p>The script never touches your chats, your message box or the sidebar. It only hides advertisement blocks.</p>
+    <p>It also cannot change the upload limit itself — that number lives on OpenAI’s servers. It only puts the normal <strong>“Upload from computer”</strong> item back so the menu is usable again.</p>
+    <p>To check it is running, press <code>F12</code>, open the Console and type <code>document.documentElement.dataset.chgptScript</code>.</p>
+  </section>
+
+  <footer>
+    <p><a href="https://github.com/free6589/chatgpt-ad-cleaner">Source code on GitHub</a> · MIT License</p>
+    <p>Not affiliated with OpenAI.</p>
+  </footer>
+
+</div>
+</body>
+</html>
