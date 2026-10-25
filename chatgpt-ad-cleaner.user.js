@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      2.1.0
+// @version      2.1.1
 // @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, and restores the normal file-upload menu.
 // @author       free6589
 // @match        https://chatgpt.com/*
@@ -14,7 +14,7 @@
 (() => {
     'use strict';
 
-    const VERSION = '2.1.0';
+    const VERSION = '2.1.1';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
 
@@ -183,9 +183,13 @@
     ];
 
     const UPGRADE_LABELS = [
-        'mejorar plan', 'mejorar a plus', 'passer \u00E0 plus', 'upgrade auf plus',
-        'fazer upgrade', 'passar para o plus', 'passa a plus', 'plus\'a y\u00FCkselt',
-        'n\u00E2ng c\u1EA5p l\u00EAn plus', '\u0E2D\u0E31\u0E1B\u0E40\u0E01\u0E23\u0E14\u0E40\u0E1B\u0E47\u0E19 plus'
+        '\u5347\u7EA7\u8BA2\u9605', '\u8BA2\u9605\u5347\u7EA7', '\u7ACB\u5373\u8BA2\u9605', '\u8BA2\u9605 plus', '\u5347\u7EA7\u5957\u9910', '\u5347\u7EA7\u8BA1\u5212',
+        '\u83B7\u53D6 plus', '\u83B7\u53D6plus', '\u83B7\u53D6 chatgpt plus', '\u83B7\u53D6chatgpt plus',
+        'get plus', 'upgrade to plus', 'subscribe to plus', 'upgrade plan', 'see plans',
+        'mejorar plan', 'mejorar a plus', 'suscribirse a plus', 'passer \u00E0 plus', 'plus abonnieren',
+        'upgrade auf plus', 'fazer upgrade', 'assinar o plus', 'passar para o plus', 'passa a plus',
+        'abbonati a plus', 'plus\'a y\u00FCkselt', 'plus\'a ge\u00E7', 'n\u00E2ng c\u1EA5p l\u00EAn plus', '\u0E2D\u0E31\u0E1B\u0E40\u0E01\u0E23\u0E14\u0E40\u0E1B\u0E47\u0E19 plus',
+        'plus\u306B\u30A2\u30C3\u30D7\u30B0\u30EC\u30FC\u30C9', 'plus \uAD6C\uB3C5', '\u043F\u043E\u0434\u043F\u0438\u0441\u0430\u0442\u044C\u0441\u044F \u043D\u0430 plus'
     ];
 
     const PROMO_PATTERNS = [
@@ -594,7 +598,8 @@
 
             const isPromo = getLabels(el).some(label =>
                 isTrialLabel(label) ||
-                isOfferButtonLabel(label)
+                isOfferButtonLabel(label) ||
+                isUpgradeLabel(label)
             );
 
             if (!isPromo) continue;
@@ -918,6 +923,29 @@
         return false;
     }
 
+    // Small "Upgrade / Subscribe" chip that can appear inside the sidebar rows
+    // next to the user name. Its wording changes, so we only require a short
+    // label that talks about a plan.
+    const CHIP_UPSELL_RE = /(?:\u5347\u7EA7|\u8BA2\u9605|\u83B7\u53D6|plus|pro|upgrade|subscribe|abonn|suscrib|assin|abbon|\u30A2\u30C3\u30D7\u30B0\u30EC\u30FC\u30C9|\uAD6C\uB3C5|\u043F\u043E\u0434\u043F\u0438\u0441)/i;
+
+    function hideSidebarUpsellChips() {
+        const rows = document.querySelectorAll('[class*="sidebar-item"], nav [class*="min-w-0 flex-1"]');
+
+        for (const row of rows) {
+            for (const btn of row.querySelectorAll('button, a')) {
+                if (!btn.getClientRects().length) continue;
+                if (isExcluded(btn)) continue;
+
+                const text = normalize(btn.textContent);
+
+                if (!text || text.length > 24) continue;
+                if (!CHIP_UPSELL_RE.test(text)) continue;
+
+                hideElement(btn);
+            }
+        }
+    }
+
     // The "free plan" reminder pill in the top bar has a small close (X)
     // button. Its accessible name is the only language-neutral hook we have,
     // so we match the "close ... reminder / upgrade / offer" wording and hide
@@ -997,6 +1025,8 @@
             hidePlanBadgeUnderProfile(profile);
             hideSidebarOfferSlot(profile);
         }
+
+        hideSidebarUpsellChips();
 
         const elements = [];
 
