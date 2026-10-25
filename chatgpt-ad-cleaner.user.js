@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      2.0.0
-// @description  Hides the upgrade ads, free-trial buttons, "Free" plan badge and disclaimer on chatgpt.com, and restores the normal file-upload menu.
+// @version      2.1.0
+// @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, and restores the normal file-upload menu.
 // @author       free6589
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -14,7 +14,7 @@
 (() => {
     'use strict';
 
-    const VERSION = '2.0.0';
+    const VERSION = '2.1.0';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
 
@@ -130,10 +130,63 @@
     const PLAN_BADGE_RE = /^(?:\u514D\u8D39\u7248|\u514D\u8D39\u5957\u9910|\u514D\u8D39\u8BA1\u5212|free|free\s+plan)$/i;
 
     const UPLOAD_LIMIT_RE =
-        /(?:\u8BA2\u9605\s*(?:Plus|Business)\s*[\uFF0C,]\s*\u83B7\u5F97\u66F4\u591A\u4E0A\u4F20\u989D\u5EA6|\u6216\u7B49\u5F85.{0,16}\u540E\u518D\u4E0A\u4F20|get\s+(?:plus|business)\s+for\s+more\s+uploads|upload\s+limit\s+reached)/i;
+        /(?:\u8BA2\u9605\s*(?:Plus|Business)\s*[\uFF0C,]\s*\u83B7\u5F97\u66F4\u591A\u4E0A\u4F20\u989D\u5EA6|\u6216\u7B49\u5F85.{0,16}\u540E\u518D\u4E0A\u4F20|get\s+(?:plus|business)\s+for\s+more\s+uploads|upload\s+limit\s+reached|more\s+uploads|mehr\s+uploads|m\u00E1s\s+cargas|plus\s+de\s+t\u00E9l\u00E9versements|mais\s+uploads|altre\s+caricamenti)/i;
 
     const DISCLAIMER_RE =
         /^(?:chatgpt\s*)?(?:\u53EF\u80FD\u4F1A\u51FA\u9519|\u53EF\u80FD\u4F1A\u72AF\u9519)[\uFF0C,\u3002.!\uFF01]?\s*(?:\u8BF7\u6838\u67E5\u91CD\u8981\u4FE1\u606F|\u8BF7\u6838\u5BF9\u91CD\u8981\u4FE1\u606F|\u8BF7\u6838\u5B9E\u91CD\u8981\u4FE1\u606F)[\u3002.!\uFF01]?$|^chatgpt(?:\s+is\s+ai\s+and)?\s+can\s+make\s+mistakes[.,\uFF0C\u3002!\uFF01]?\s*check\s+important\s+info[.!\uFF01\u3002]?$/i;
+
+    // Same sentence in any other language: it starts with ChatGPT, mentions
+    // mistakes and asks to check important information.
+    const DISCLAIMER_GENERIC_RE =
+        /^chatgpt[^.!?]{0,60}(?:mistake|error|erro|erreur|fehler|errore|\u043E\u0448\u0438\u0431|\u9593\u9055|\uC2E4\uC218|\u9519\u8BEF|\u51FA\u9519)[\s\S]{0,150}(?:important|wichtig|importante|importanti|\u0432\u0430\u0436\u043D|\u91CD\u8981|\uC911\uC694)/i;
+
+    // Exact button labels for the other interface languages. Matching a whole
+    // label (not a substring) keeps normal chat text out of the way.
+    const TRIAL_LABELS = [
+        'prueba plus gratis', 'probar plus gratis', 'prueba gratis',
+        'empieza tu prueba gratuita', 'comienza tu prueba gratuita',
+        'essayer plus gratuitement', 'essayez plus gratuitement', 'essai gratuit',
+        'commencer l\'essai gratuit', 'commencer l\u2019essai gratuit',
+        'plus kostenlos testen', 'plus gratis testen', 'kostenlos testen', 'kostenlose testversion',
+        'experimente o plus gr\u00E1tis', 'experimentar plus gr\u00E1tis', 'teste o plus gr\u00E1tis', 'teste gr\u00E1tis',
+        'prova plus gratis', 'prova plus gratuitamente', 'prova gratuita',
+        'plus\u3092\u7121\u6599\u3067\u8A66\u3059', '\u7121\u6599\u3067\u8A66\u3059', '\u7121\u6599\u30C8\u30E9\u30A4\u30A2\u30EB',
+        'plus \uBB34\uB8CC\uB85C \uC0AC\uC6A9\uD574 \uBCF4\uAE30', '\uBB34\uB8CC\uB85C \uC0AC\uC6A9\uD574 \uBCF4\uAE30', '\uBB34\uB8CC \uCCB4\uD5D8',
+        '\u043F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C plus \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E', '\u043F\u043E\u043F\u0440\u043E\u0431\u043E\u0432\u0430\u0442\u044C \u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E', '\u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u0430\u044F \u043F\u0440\u043E\u0431\u043D\u0430\u044F \u0432\u0435\u0440\u0441\u0438\u044F',
+        'plus gratis proberen', 'gratis proberen',
+        'wypr\u00F3buj plus za darmo', 'wypr\u00F3buj za darmo',
+        '\u00FCcretsiz dene', 'plus\'\u0131 \u00FCcretsiz dene',
+        'coba plus gratis', 'coba gratis',
+        'd\u00F9ng th\u1EED plus mi\u1EC5n ph\u00ED', 'd\u00F9ng th\u1EED mi\u1EC5n ph\u00ED',
+        '\u0E17\u0E14\u0E25\u0E2D\u0E07\u0E43\u0E0A\u0E49 plus \u0E1F\u0E23\u0E35', '\u0E17\u0E14\u0E25\u0E2D\u0E07\u0E43\u0E0A\u0E49\u0E1F\u0E23\u0E35',
+        '\u062C\u0631\u0651\u0628 plus \u0645\u062C\u0627\u0646\u064B\u0627', '\u062A\u062C\u0631\u0628\u0629 \u0645\u062C\u0627\u0646\u064A\u0629',
+        'plus \u0915\u094B \u092E\u0941\u092B\u093C\u094D\u0924 \u0906\u091C\u093C\u092E\u093E\u090F\u0901', '\u092E\u0941\u092B\u093C\u094D\u0924 \u0906\u091C\u093C\u092E\u093E\u090F\u0901'
+    ];
+
+    const OFFER_LABELS = [
+        'aprovechar oferta', 'obtener oferta', 'canjear oferta', 'reclamar oferta', 'oferta gratis',
+        'r\u00E9cup\u00E9rer l\'offre', 'obtenir l\'offre', 'offre gratuite', 'profiter de l\'offre',
+        'angebot sichern', 'angebot erhalten', 'angebot einl\u00F6sen', 'gratisangebot',
+        'resgatar oferta', 'aproveitar oferta', 'oferta gr\u00E1tis',
+        'riscatta offerta', 'ottieni offerta', 'offerta gratis',
+        '\u30AA\u30D5\u30A1\u30FC\u3092\u53D7\u3051\u53D6\u308B', '\u7121\u6599\u30AA\u30D5\u30A1\u30FC',
+        '\uD61C\uD0DD \uBC1B\uAE30', '\uBB34\uB8CC \uD61C\uD0DD',
+        '\u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435', '\u0431\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E\u0435 \u043F\u0440\u0435\u0434\u043B\u043E\u0436\u0435\u043D\u0438\u0435',
+        'aanbieding claimen', 'gratis aanbieding',
+        'odbierz ofert\u0119', 'darmowa oferta',
+        'teklifi al', '\u00FCcretsiz teklif',
+        'klaim penawaran', 'penawaran gratis',
+        'nh\u1EADn \u01B0u \u0111\u00E3i', '\u01B0u \u0111\u00E3i mi\u1EC5n ph\u00ED',
+        '\u0E23\u0E31\u0E1A\u0E02\u0E49\u0E2D\u0E40\u0E2A\u0E19\u0E2D', '\u0E02\u0E49\u0E2D\u0E40\u0E2A\u0E19\u0E2D\u0E1F\u0E23\u0E35',
+        '\u0627\u062D\u0635\u0644 \u0639\u0644\u0649 \u0627\u0644\u0639\u0631\u0636', '\u0639\u0631\u0636 \u0645\u062C\u0627\u0646\u064A',
+        '\u0911\u092B\u093C\u0930 \u092A\u094D\u0930\u093E\u092A\u094D\u0924 \u0915\u0930\u0947\u0902', '\u092E\u0941\u092B\u093C\u094D\u0924 \u0911\u092B\u093C\u0930'
+    ];
+
+    const UPGRADE_LABELS = [
+        'mejorar plan', 'mejorar a plus', 'passer \u00E0 plus', 'upgrade auf plus',
+        'fazer upgrade', 'passar para o plus', 'passa a plus', 'plus\'a y\u00FCkselt',
+        'n\u00E2ng c\u1EA5p l\u00EAn plus', '\u0E2D\u0E31\u0E1B\u0E40\u0E01\u0E23\u0E14\u0E40\u0E1B\u0E47\u0E19 plus'
+    ];
 
     const PROMO_PATTERNS = [
         /\u4F60\u6B63\u5728\u4F7F\u7528\s*ChatGPT\s*(?:\u514D\u8D39\u7248|\u514D\u8D39\u8BA1\u5212|\u514D\u8D39\u5957\u9910).{0,220}(?:\u5347\u7EA7|\u9AD8\u7EA7\u6A21\u578B|\u8BB0\u5FC6|\u56FE\u50CF)/i,
@@ -144,12 +197,35 @@
         /(?:\u589E\u5F3A\u63A8\u7406|\u8C03\u8BD5\u4EE3\u7801|\u68B3\u7406\u7CFB\u7EDF).{0,140}(?:\u5347\u7EA7\u81F3|\u5347\u7EA7\u5230|\u5347\u7EA7|Plus|Pro|\u6570\u5B66|\u7406\u79D1\u95EE\u9898)/i,
         /(?:\u5347\u7EA7|\u8BA2\u9605|\u514D\u8D39\u8BD5\u7528|\u5F00\u59CB\u8BD5\u7528).{0,160}(?:\u9AD8\u7EA7\u6A21\u578B|\u66F4\u5F3A\u7684\u8BB0\u5FC6\u529F\u80FD|\u66F4\u5927\u7684\u8BB0\u5FC6\u5BB9\u91CF|\u66F4\u9AD8\u8D28\u91CF\u7684\u56FE\u50CF|\u751F\u6210\u66F4\u9AD8\u8D28\u91CF\u7684\u56FE\u50CF|\u66F4\u591A\u6D88\u606F|\u66F4\u9AD8\u7684\u4F7F\u7528\u9650\u989D|\u589E\u5F3A\u63A8\u7406|\u8C03\u8BD5\u4EE3\u7801|\u68B3\u7406\u7CFB\u7EDF|\u6570\u5B66\u6216\u7406\u79D1\u95EE\u9898)/i,
         /(?:\u9AD8\u7EA7\u6A21\u578B|\u66F4\u5F3A\u7684\u8BB0\u5FC6\u529F\u80FD|\u66F4\u5927\u7684\u8BB0\u5FC6\u5BB9\u91CF|\u66F4\u9AD8\u8D28\u91CF\u7684\u56FE\u50CF|\u589E\u5F3A\u63A8\u7406|\u8C03\u8BD5\u4EE3\u7801|\u68B3\u7406\u7CFB\u7EDF|\u6570\u5B66\u6216\u7406\u79D1\u95EE\u9898).{0,160}(?:\u5347\u7EA7|\u8BA2\u9605|\u514D\u8D39\u8BD5\u7528|Plus|Pro)/i,
-        /(?:you(?:'|\u2019)re using|you are using|you(?:'|\u2019)re on|you are on).{0,50}(?:ChatGPT\s*)?(?:Free plan|Free tier).{0,180}(?:upgrade|advanced models|memory|images|limits)/i,
+        /(?:you(?:'|\u2019)re using|you are using|you(?:'|\u2019)re on|you are on).{0,50}(?:ChatGPT\s*)?(?:Free plan|Free tier|free version).{0,200}(?:upgrade|advanced models|memory|images|limits)/i,
         /(?:upgrade to use|upgrade to access|upgrade for|try Plus|try Pro|start a free trial).{0,160}(?:advanced models|reasoning|debug code|coding|math|science|memory|higher.?quality images|more messages|higher limits)/i,
-        /(?:\u5347\u7EA7\u5957\u9910|\u8BA2\u9605\u5957\u9910|\u514D\u8D39\u8BD5\u7528|\u5347\u7EA7\u81F3 Plus|\u5347\u7EA7\u81F3 Pro).{0,160}(?:\u6A21\u578B|\u63A8\u7406|\u4EE3\u7801|\u6570\u5B66|\u7406\u79D1|\u529F\u80FD|\u8BB0\u5FC6|\u56FE\u50CF|\u989D\u5EA6)/i
+        /(?:est\u00E1s usando la versi\u00F3n gratuita|estas usando la versi\u00F3n gratuita).{0,200}(?:mejora|avanzados|memoria)/i,
+        /(?:vous utilisez la version gratuite|vous utilisez la version gratuite de chatgpt).{0,200}(?:passez|avanc\u00E9s|m\u00E9moire)/i,
+        /(?:sie verwenden die kostenlose version|du verwendest die kostenlose version).{0,200}(?:upgrade|fortschrittliche|speicher)/i,
+        /(?:voc\u00EA est\u00E1 usando a vers\u00E3o gratuita|est\u00E1 a usar a vers\u00E3o gratuita).{0,200}(?:atualize|avan\u00E7ados|mem\u00F3ria)/i,
+        /(?:\u5347\u7EA7\u5957\u9910|\u8BA2\u9605\u5957\u9910|\u514D\u8D39\u8BD5\u7528|\u5347\u7EA7\u81F3 Plus|\u5347\u7EA7\u81F3 Pro).{0,160}(?:\u6A21\u578B|\u63A8\u7406|\u4EE3\u7801|\u6570\u5B66|\u7406\u79D1|\u529F\u80FD|\u8BB0\u5FC6|\u56FE\u50CF|\u989D\u5EA6)/i,
+        /(?:upgrade to plus|upgrade to pro|try plus free|try pro free).{0,140}(?:reasoning|debug|coding|math|science|advanced models|memory)/i
     ];
 
     const SEMANTIC_PROMO_RE = /(?:banner|upsell|promo|promotion|upgrade|trial)/i;
+
+    function inLabelList(text, list) {
+        const value = normalize(text).toLowerCase();
+        if (!value) return false;
+        return list.indexOf(value) !== -1;
+    }
+
+    function isTrialLabel(text) {
+        return TRIAL_CTA_RE.test(normalize(text)) || inLabelList(text, TRIAL_LABELS);
+    }
+
+    function isOfferLabel(text) {
+        return OFFER_CTA_RE.test(normalize(text)) || inLabelList(text, OFFER_LABELS);
+    }
+
+    function isUpgradeLabel(text) {
+        return UPGRADE_CTA_RE.test(normalize(text)) || inLabelList(text, UPGRADE_LABELS);
+    }
 
     /* ------------------------------------------------------------------
      * 3) Selectors and safety rails
@@ -224,7 +300,7 @@
     function isOfferButtonLabel(label) {
         const text = normalize(label);
 
-        if (!text || text.length > 12) {
+        if (!text || text.length > 32) {
             return false;
         }
 
@@ -232,7 +308,7 @@
             return true;
         }
 
-        return OFFER_CTA_RE.test(text);
+        return isOfferLabel(text);
     }
 
     function isPromoCTA(el) {
@@ -245,9 +321,9 @@
         }
 
         return getLabels(el).some(label =>
-            TRIAL_CTA_RE.test(label) ||
+            isTrialLabel(label) ||
             isOfferButtonLabel(label) ||
-            UPGRADE_CTA_RE.test(label)
+            isUpgradeLabel(label)
         );
     }
 
@@ -285,8 +361,9 @@
             }
 
             return getLabels(control).some(label =>
-                UPGRADE_CTA_RE.test(label) ||
-                OFFER_CTA_RE.test(label)
+                isUpgradeLabel(label) ||
+                isOfferLabel(label) ||
+                isTrialLabel(label)
             );
         });
     }
@@ -439,7 +516,7 @@
             return;
         }
 
-        if (!/\u53EF\u80FD\u4F1A\u51FA\u9519|\u53EF\u80FD\u4F1A\u72AF\u9519|can make mistakes/i.test(root.textContent)) {
+        if (!/\u53EF\u80FD\u4F1A\u51FA\u9519|\u53EF\u80FD\u4F1A\u72AF\u9519|can make mistakes|mistake|error|erro|erreur|fehler|errore|\u043E\u0448\u0438\u0431|\u9593\u9055|\uC2E4\uC218/i.test(root.textContent)) {
             return;
         }
 
@@ -459,7 +536,7 @@
 
             const text = getText(el);
 
-            if (!DISCLAIMER_RE.test(text)) continue;
+            if (!DISCLAIMER_RE.test(text) && !DISCLAIMER_GENERIC_RE.test(text)) continue;
 
             const isLeaf = el.childElementCount === 0 || (
                 el.childElementCount === 1 &&
@@ -516,7 +593,7 @@
             if (!el.isConnected) continue;
 
             const isPromo = getLabels(el).some(label =>
-                TRIAL_CTA_RE.test(label) ||
+                isTrialLabel(label) ||
                 isOfferButtonLabel(label)
             );
 
@@ -760,6 +837,149 @@
         return fallback;
     }
 
+    /* ------------------------------------------------------------------
+     * 4b) Rules that do not depend on the page language
+     *
+     * The same blocks exist in every language, so instead of matching their
+     * words we match their place in the page. This keeps the script working
+     * when the ChatGPT interface is not English or Chinese.
+     * ------------------------------------------------------------------ */
+
+    // The profile button at the bottom of the sidebar: holds an avatar image.
+    function findProfileButton() {
+        const buttons = document.querySelectorAll('button[aria-haspopup="menu"], button[aria-expanded]');
+        let best = null;
+
+        for (const btn of buttons) {
+            if (!btn.getClientRects().length) continue;
+            if (!btn.querySelector('img')) continue;
+
+            const rect = btn.getBoundingClientRect();
+
+            if (rect.width < 100) continue;
+            if (rect.top < window.innerHeight * 0.55) continue;
+
+            if (!best || rect.top > best.getBoundingClientRect().top) {
+                best = btn;
+            }
+        }
+
+        return best;
+    }
+
+    // Second line inside the profile button = the plan badge ("Free",
+    // "Gratis", "\u514D\u8D39\u7248", "\u7121\u6599"...). Its wording does not matter.
+    function hidePlanBadgeUnderProfile(profile) {
+        if (!profile) return false;
+
+        const containers = profile.querySelectorAll('span, div');
+
+        for (const container of containers) {
+            if (container.children.length !== 2) continue;
+
+            const name = container.children[0];
+            const badge = container.children[1];
+
+            if (!normalize(name.textContent) || !normalize(badge.textContent)) continue;
+            if (badge.querySelector('button, img')) continue;
+
+            const text = normalize(badge.textContent);
+            if (text.length > 24) continue;
+
+            const rect = badge.getBoundingClientRect();
+            if (!rect.height || rect.height > 30) continue;
+
+            return hideElement(badge);
+        }
+
+        return false;
+    }
+
+    // The round offer button that sits right above the profile row.
+    function hideSidebarOfferSlot(profile) {
+        if (!profile) return false;
+
+        const top = profile.getBoundingClientRect().top;
+
+        for (const block of document.querySelectorAll('div[class*="col-span-full"]')) {
+            const controls = block.querySelectorAll('button, a');
+
+            if (controls.length !== 1) continue;
+
+            const rect = block.getBoundingClientRect();
+
+            if (!rect.height || rect.height > 80) continue;
+            if (rect.bottom > top - 2) continue;
+            if (top - rect.bottom > 48) continue;
+
+            return hideElement(block);
+        }
+
+        return false;
+    }
+
+    // The "free plan" reminder pill in the top bar has a small close (X)
+    // button. Its accessible name is the only language-neutral hook we have,
+    // so we match the "close ... reminder / upgrade / offer" wording and hide
+    // the whole pill around it.
+    const DISMISS_UPSELL_RE =
+        /(?:close|dismiss|cerrar|fechar|schlie\u00DFen|schliessen|fermer|chiudi|sluiten|zamknij|kapat|\u0111\u00F3ng|\u0E1B\u0E34\u0E14|\u0625\u063A\u0644\u0627\u0642|\u092C\u0902\u0926 \u0915\u0930\u0947\u0902).{0,50}(?:reminder|upgrade|offer|plan|promo|recordatorio|mejorar|lembrete|erinnerung|rappel|promemoria|aanbieding|ofert|teklif|\u01B0u \u0111\u00E3i|\u0E02\u0E49\u0E2D\u0E40\u0E2A\u0E19\u0E2D|\u0627\u0644\u0639\u0631\u0636|\u0911\u092B\u093C\u0930)|(?:\u5173\u95ED|\u5173\u95ED\u5347\u7EA7|\u5173\u95ED\u4F18\u60E0|\u5173\u95ED\u63D0\u9192)/i;
+
+    function hideUpsellReminders(root) {
+        if (!root || !root.querySelectorAll) return;
+
+        for (const control of root.querySelectorAll('button[aria-label]')) {
+            if (!control.isConnected) continue;
+            if (!control.getClientRects().length) continue;
+
+            const label = control.getAttribute('aria-label') || '';
+
+            if (!DISMISS_UPSELL_RE.test(label)) continue;
+            if (isExcluded(control)) continue;
+
+            let target = control.parentElement;
+
+            if (!target) continue;
+            if (isExcluded(target)) continue;
+
+            const rect = target.getBoundingClientRect();
+
+            if (!rect.height || rect.height > 60) continue;
+            if (target.querySelectorAll('button').length > 2) continue;
+
+            hideElement(target);
+        }
+    }
+
+    // Small status/alert card that carries a promo button: the "you are on the
+    // free plan" banner in any language.
+    function hideStatusPromoCards(root) {
+        if (!root || !root.querySelectorAll) return;
+
+        const cards = root.querySelectorAll('[role="status"], [role="alert"]');
+
+        for (const card of cards) {
+            if (!card.isConnected) continue;
+            if (!card.getClientRects().length) continue;
+            if (isExcluded(card)) continue;
+            if (card.closest('button, nav, [class*="sidebar"], [class*="Sidebar"]')) continue;
+
+            const rect = card.getBoundingClientRect();
+
+            if (!rect.height || rect.height > 170) continue;
+            if (normalize(card.textContent).length > 400) continue;
+            if (!hasPromoAction(card)) continue;
+
+            if (hideElement(card)) continue;
+
+            const control = card.querySelector('button, a, [role="button"]');
+
+            if (control && isPromoCTA(control)) {
+                forceHidePromoControl(control);
+            }
+        }
+    }
+
     function scanRoot(root) {
         if (!root || !root.isConnected) return;
 
@@ -768,6 +988,15 @@
         hideOfferButtons(root);
         hidePlanBadges(root);
         hideUploadLimitRows(root);
+        hideStatusPromoCards(root);
+        hideUpsellReminders(root);
+
+        const profile = findProfileButton();
+
+        if (profile) {
+            hidePlanBadgeUnderProfile(profile);
+            hideSidebarOfferSlot(profile);
+        }
 
         const elements = [];
 

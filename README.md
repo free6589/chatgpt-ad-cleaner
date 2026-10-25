@@ -4,6 +4,8 @@ A small browser add-on that hides the upgrade ads on **chatgpt.com**.
 
 It runs quietly in the background. You don't need to configure anything.
 
+It works whatever language your ChatGPT is set to: the ad blocks are found by where they sit on the page, not by the words inside them, and the buttons are recognised in English, Chinese, Spanish, French, German, Portuguese, Italian, Japanese, Korean, Russian and more.
+
 <p align="center">
   <img src="assets/illustration.svg" width="80%" alt="Illustration: the offer buttons and the upgrade card are crossed out">
 </p>
@@ -22,6 +24,7 @@ It runs quietly in the background. You don't need to configure anything.
 | The **"ChatGPT can make mistakes. Check important info."** line under the chat | Gone |
 | The upgrade card above the message box ("Upgrade to Plus …" + "Try Plus free") | Gone |
 | The **"Get Plus for more uploads / or wait 18 hours"** row in the **+** menu | Gone, and **"Upload from computer"** comes back |
+| The small plan reminder pill in the top bar (with its **×** button) | Gone |
 
 Everything else stays exactly the same: your chats, the message box, the sidebar, sending and receiving messages.
 
@@ -59,7 +62,7 @@ If you want to be sure the script is loaded, press `F12`, open the **Console** t
 document.documentElement.dataset.chgptScript
 ```
 
-It should print the version number, for example `"2.0.0"`.
+It should print the version number, for example `"2.1.0"`.
 
 ---
 
@@ -81,6 +84,9 @@ Partly. The script puts the normal **"Upload from computer"** item back in the *
 
 **How do I uninstall it?**
 Open the Tampermonkey dashboard, find **ChatGPT Ad Cleaner** and click **Delete**. ChatGPT goes back to normal immediately.
+
+**My ChatGPT is not in English. Does it still work?**
+Yes. The big blocks — the offer button in the sidebar, the plan badge under your name, the upgrade card above the message box and the reminder in the top bar — are found by their position on the page, so their wording does not matter. The buttons themselves are also recognised in many languages, not only English.
 
 **Does it collect any data?**
 No. The script has no network requests of its own, no analytics and no tracking. It only changes what is displayed in your own browser.
