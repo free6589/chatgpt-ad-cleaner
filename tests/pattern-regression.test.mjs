@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import vm from 'node:vm';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = readFileSync(path.join(root, 'chatgpt-ad-cleaner.user.js'), 'utf8');
@@ -49,6 +50,14 @@ function getRegexArray(name) {
     cursor = parsed.end;
   }
   return result;
+}
+
+
+function loadSourceFunction(name, nextMarker) {
+  const start = source.indexOf('function ' + name + '(');
+  const end = source.indexOf(nextMarker, start);
+  assert.ok(start >= 0 && end > start, 'could not isolate function: ' + name);
+  return vm.runInNewContext('(' + source.slice(start, end).trim() + ')');
 }
 
 function assertMatches(regex, samples, description) {
@@ -127,6 +136,44 @@ test('ordinary discussion should not be classified by the primary CTA labels', (
   assertDoesNotMatch(upgrade, [
     'Please explain how to upgrade to Plus', '升级到 Plus 有什么区别？'
   ], 'upgrade CTA');
+});
+
+test('stripUploadBlock changes only upload-related fields', () => {
+  const stripUploadBlock = loadSourceFunction('stripUploadBlock', 'function shouldPatch');
+  const data = {
+    blocked_features: [{ name: 'file_upload' }, { name: 'web_search' }],
+    limits_progress: [
+      { feature_name: 'file_upload', remaining: 0 },
+      { feature_name: 'voice', remaining: 0 }
+    ],
+    banner_info: { upsell_context_id: 'file_upload', other: 'preserve' }
+  };
+  assert.equal(stripUploadBlock(data), true);
+  assert.deepEqual(data.blocked_features, [{ name: 'web_search' }]);
+  assert.equal(data.limits_progress[0].remaining, 1);
+  assert.equal(data.limits_progress[1].remaining, 0);
+  assert.equal(data.banner_info, null);
+
+  const unrelated = {
+    blocked_features: [{ name: 'web_search' }],
+    limits_progress: [{ feature_name: 'voice', remaining: 0 }],
+    banner_info: { upsell_context_id: 'voice' }
+  };
+  assert.equal(stripUploadBlock(unrelated), false);
+  assert.deepEqual(unrelated.blocked_features, [{ name: 'web_search' }]);
+  assert.equal(unrelated.limits_progress[0].remaining, 0);
+  assert.deepEqual(unrelated.banner_info, { upsell_context_id: 'voice' });
+  assert.equal(stripUploadBlock(null), false);
+});
+
+test('shouldPatch accepts conversation routes and rejects near matches', () => {
+  const shouldPatch = loadSourceFunction('shouldPatch', 'const originalFetch');
+  assert.equal(shouldPatch('https://chatgpt.com/backend-api/conversation'), true);
+  assert.equal(shouldPatch('/backend-api/conversation/init'), true);
+  assert.equal(shouldPatch('/backend-api/conversation?foo=1'), true);
+  assert.equal(shouldPatch('/backend-api/conversationevil'), false);
+  assert.equal(shouldPatch('/backend-api/files'), false);
+  assert.equal(shouldPatch(''), false);
 });
 
 test('upload response patch has explicit guards before mutation', () => {
