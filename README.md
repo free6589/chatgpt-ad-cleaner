@@ -79,7 +79,7 @@ If you want to be sure the script is loaded, press `F12`, open the **Console** t
 document.documentElement.dataset.chgptScript
 ```
 
-It should print the version number, for example `"2.2.0"`.
+It should print the version number, for example `"2.2.1"`.
 
 ---
 
