@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      2.2.1
+// @version      2.2.2
 // @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, restores the normal file-upload menu, and turns "Think" on automatically.
 // @author       free6589
 // @match        https://chatgpt.com/*
@@ -14,7 +14,7 @@
 (() => {
     'use strict';
 
-    const VERSION = '2.2.1';
+    const VERSION = '2.2.2';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
 
@@ -73,7 +73,10 @@
     }
 
     function shouldPatch(url) {
-        return /\/backend-api\/conversation(\/|$|\?)/.test(String(url || ''));
+        // Upload-block metadata is needed from the init response only. Matching
+        // every /conversation/* URL also parses large saved-conversation JSON
+        // responses for no reason, which can hurt long-chat load performance.
+        return /\/backend-api\/conversation\/init(?:[?#]|$)/.test(String(url || ''));
     }
 
     const originalFetch = window.fetch;
