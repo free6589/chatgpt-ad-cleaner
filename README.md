@@ -14,7 +14,7 @@ It works whatever language your ChatGPT is set to: the ad blocks are found by wh
 
 ---
 
-## Version 0.02 — Project Think compatibility
+## Version 0.03 — Project Think compatibility improvements
 
 This release builds on the first public version of ChatGPT Ad Cleaner.
 
@@ -26,7 +26,7 @@ This release builds on the first public version of ChatGPT Ad Cleaner.
 - Reduce unnecessary page work: skip text-only streaming mutations, debounce scans, watch DOM insertions rather than every style change, limit diagnostic counts, and inspect only the conversation initialization response for upload-limit metadata.
 - Provide __chgptCleaner.pause() and __chgptCleaner.resume() as emergency controls.
 
-The userscript passes JavaScript syntax validation. Project Think compatibility is experimental and still requires a live project-chat request/response test. Performance has not yet been measured in a controlled real-browser comparison.
+The userscript passes JavaScript syntax validation and Node.js regression tests. Project Think compatibility is experimental and still requires a live project-chat request/response test. Performance has not yet been measured in a controlled real-browser comparison.
 
 ---
 
@@ -88,7 +88,7 @@ If you want to be sure the script is loaded, press `F12`, open the **Console** t
 document.documentElement.dataset.chgptScript
 ```
 
-It should print the version number, for example `"0.02"`.
+It should print the version number, for example `"0.03"`.
 
 ---
 
@@ -121,6 +121,19 @@ If a page ever feels heavy anyway, open the console and run `__chgptCleaner.paus
 
 **Does it collect any data?**
 No. The script has no network requests of its own, no analytics and no tracking. It only changes what is displayed in your own browser.
+
+---
+
+## Development checks
+
+No npm dependencies are required. Run the built-in Node.js checks from the repository root:
+
+```sh
+node --check chatgpt-ad-cleaner.user.js
+node --test
+```
+
+The regression tests exercise the production URL-matching and project Think response-patching helpers. They do not replace a live browser test against ChatGPT.
 
 ---
 
