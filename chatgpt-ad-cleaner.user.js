@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      0.02
+// @version      0.03
 // @description  Hides upgrade ads, restores the normal file-upload menu, turns on Think, and provides experimental Think compatibility for project chats.
 // @author       free6589
 // @match        https://chatgpt.com/*
@@ -14,7 +14,7 @@
 (() => {
     'use strict';
 
-    const VERSION = '0.02';
+    const VERSION = '0.03';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
 
@@ -72,105 +72,91 @@
         return changed;
     }
 
-    function getProjectGizmoId(url) {
+    function getRequestUrl(input) {
+        if (typeof input === 'string') return input;
+        if (input && typeof input.url === 'string') return input.url;
+        if (input && typeof input.href === 'string') return input.href;
+        return '';
+    }
+
+    function parseSameOriginUrl(input) {
+        const value = getRequestUrl(input);
+        if (!value) return null;
         try {
-            const requestUrl = new URL(String(url || ''), location.origin);
-            const gizmoId = requestUrl.searchParams.get('gizmo_id') || '';
-
-            // ChatGPT project IDs use the g-p- prefix. Do not change the
-            // eligibility response for ordinary custom GPT conversations.
-            if (
-                !requestUrl.pathname.endsWith('/backend-api/system_hints') ||
-                requestUrl.searchParams.get('mode') !== 'basic' ||
-                !/^g-p-[a-z0-9_-]+$/i.test(gizmoId)
-            ) {
-                return null;
-            }
-
-            return gizmoId;
+            const requestUrl = new URL(value, location.origin);
+            if (requestUrl.origin !== location.origin) return null;
+            return requestUrl;
         } catch (e) {
             return null;
         }
     }
 
+    function getProjectGizmoId(input) {
+        const requestUrl = parseSameOriginUrl(input);
+        if (
+            !requestUrl ||
+            requestUrl.pathname !== '/backend-api/system_hints' ||
+            requestUrl.searchParams.get('mode') !== 'basic'
+        ) return null;
+
+        const gizmoId = requestUrl.searchParams.get('gizmo_id') || '';
+        return /^g-p-[a-z0-9_-]+$/i.test(gizmoId) ? gizmoId : null;
+    }
+
     function enableProjectThinkingHint(data, url) {
-        if (!getProjectGizmoId(url) || !data || !Array.isArray(data.system_hints)) {
-            return false;
-        }
+        if (!getProjectGizmoId(url) || !data || !Array.isArray(data.system_hints)) return false;
+        const reasonHint = data.system_hints.find(item => item && item.system_hint === 'reason');
+        if (!reasonHint || !Array.isArray(reasonHint.required_conversation_modes)) return false;
+        if (reasonHint.required_conversation_modes.includes('gizmo_interaction')) return false;
 
-        const reasonHint = data.system_hints.find(
-            item => item && item.system_hint === 'reason'
-        );
-
-        if (!reasonHint || !Array.isArray(reasonHint.required_conversation_modes)) {
-            return false;
-        }
-
-        if (reasonHint.required_conversation_modes.includes('gizmo_interaction')) {
-            return false;
-        }
-
-        // The captured project response advertises "reason" for
-        // primary_assistant only, while project turns use gizmo_interaction.
-        // Extend the client-side eligibility list so the native Think control
-        // can appear. The server may still reject or ignore this combination.
+        // This client-side eligibility override exposes the native control only.
+        // It does not prove that the backend will honor the selected mode.
         reasonHint.required_conversation_modes = [
             ...reasonHint.required_conversation_modes,
             'gizmo_interaction'
         ];
-
         return true;
     }
 
-    function shouldPatch(url) {
-        const value = String(url || '');
-        const path = value.split('?')[0].split('#')[0];
+    function getResponsePatchKind(input) {
+        const requestUrl = parseSameOriginUrl(input);
+        if (!requestUrl) return null;
+        if (requestUrl.pathname === '/backend-api/conversation/init') return 'conversation-init';
+        if (getProjectGizmoId(requestUrl.href)) return 'project-system-hints';
+        return null;
+    }
 
-        // Keep the upload patch scoped to conversation init. The Think
-        // compatibility patch is limited to basic-mode project requests.
-        return path.endsWith('/backend-api/conversation/init') ||
-            !!getProjectGizmoId(value);
+    function shouldPatch(url) {
+        return getResponsePatchKind(url) !== null;
     }
 
     const originalFetch = window.fetch;
 
     if (typeof originalFetch === 'function') {
         window.fetch = function (...args) {
-            const input = args[0];
-            const url = typeof input === 'string' ? input : (input && input.url) || '';
+            const url = getRequestUrl(args[0]);
+            const patchKind = getResponsePatchKind(url);
             const promise = originalFetch.apply(this, args);
 
-            if (!shouldPatch(url)) {
-                return promise;
-            }
+            if (!patchKind) return promise;
 
             return promise.then(response => {
                 const type = response.headers.get('content-type') || '';
-
-                if (!/application\/json/i.test(type)) {
-                    return response;
-                }
+                if (!/application\/json/i.test(type)) return response;
 
                 return response.clone().json().then(data => {
                     let changed = false;
-                    const path = String(url || '').split('?')[0].split('#')[0];
-
-                    if (path.endsWith('/backend-api/conversation/init')) {
+                    if (patchKind === 'conversation-init') {
                         changed = stripUploadBlock(data) || changed;
                     }
-
-                    if (getProjectGizmoId(url)) {
+                    if (patchKind === 'project-system-hints') {
                         changed = enableProjectThinkingHint(data, url) || changed;
                     }
-
-                    if (!changed) {
-                        return response;
-                    }
+                    if (!changed) return response;
 
                     const headers = new Headers(response.headers);
                     headers.delete('content-length');
                     headers.delete('content-encoding');
-
                     return new Response(JSON.stringify(data), {
                         status: response.status,
                         statusText: response.statusText,
@@ -1108,41 +1094,46 @@
     ];
 
     // Remember controls already handled so a manual opt-out is not undone.
-    const thinkHandled = new WeakSet();
+    let thinkHandled = new WeakSet();
+    let lastThinkScope = location.pathname + location.search;
 
     function isComposerThinkButton(button) {
-        if (button.closest('form')) return true;
-
-        const editors = document.querySelectorAll('[contenteditable="true"], #prompt-textarea');
-        const editor = Array.from(editors).find(item => item.getClientRects().length);
-
-        if (!editor) return false;
+        if (!button || !button.parentElement) return false;
+        const editors = Array.from(
+            document.querySelectorAll('[contenteditable="true"], #prompt-textarea')
+        ).filter(item => item.getClientRects().length > 0);
+        if (!editors.length) return false;
 
         let parent = button.parentElement;
         let depth = 0;
-
-        while (parent && parent !== document.body && depth < 8) {
-            if (parent.contains(editor)) return true;
+        while (parent && parent !== document.body && depth < 12) {
+            if (editors.some(editor => parent.contains(editor))) return true;
             parent = parent.parentElement;
             depth++;
         }
-
         return false;
     }
 
     function autoEnableThinking() {
-        // The project composer can render Think outside a <form>. Search all
-        // pressed-state buttons, then anchor the exact Think label to the editor.
-        const buttons = document.querySelectorAll('button[aria-pressed="false"]');
+        // Preserve manual opt-out on this route; allow a new chat route to retry.
+        const scope = location.pathname + location.search;
+        if (scope !== lastThinkScope) {
+            thinkHandled = new WeakSet();
+            lastThinkScope = scope;
+        }
+
+        // Project composers may render Think outside a <form>.
+        const buttons = document.querySelectorAll(
+            'button[aria-pressed="false"], button[aria-checked="false"]'
+        );
 
         for (const btn of buttons) {
             if (!btn.getClientRects().length) continue;
             if (btn.disabled) continue;
 
-            const text = normalize(btn.textContent).toLowerCase();
+            const labels = getLabels(btn).map(label => normalize(label).toLowerCase());
 
-            if (!text) continue;
-            if (THINK_LABELS.indexOf(text) === -1) continue;
+            if (!labels.some(label => THINK_LABELS.includes(label))) continue;
             if (!isComposerThinkButton(btn)) continue;
 
             if (thinkHandled.has(btn)) continue;
