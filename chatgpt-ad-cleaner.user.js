@@ -1107,7 +1107,8 @@
         'suy ngh\u0129', '\u0E04\u0E34\u0E14', '\u062A\u0641\u0643\u064A\u0631', '\u0938\u094B\u091A\u0947\u0902'
     ];
 
-    const thinkAttempts = new WeakMap();
+    // Remember controls already handled so a manual opt-out is not undone.
+    const thinkHandled = new WeakSet();
 
     function isComposerThinkButton(button) {
         if (button.closest('form')) return true;
@@ -1144,16 +1145,16 @@
             if (THINK_LABELS.indexOf(text) === -1) continue;
             if (!isComposerThinkButton(btn)) continue;
 
-            const attempts = thinkAttempts.get(btn) || 0;
-
-            if (attempts >= 3) continue;
-
-            thinkAttempts.set(btn, attempts + 1);
+            if (thinkHandled.has(btn)) continue;
 
             try {
+                // Mark before click because React may synchronously re-render.
+                thinkHandled.add(btn);
                 btn.click();
                 console.info(LOG_PREFIX + ' Think toggle clicked');
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+                thinkHandled.delete(btn);
+            }
         }
     }
 
