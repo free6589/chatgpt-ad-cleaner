@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ChatGPT Ad Cleaner
 // @namespace    io.github.free6589.chatgpt-ad-cleaner
-// @version      0.01
-// @description  Hides the upgrade ads, free-trial buttons, plan badge and disclaimer on chatgpt.com in any interface language, restores the normal file-upload menu, and turns "Think" on automatically.
+// @version      0.02
+// @description  Hides upgrade ads, restores the normal file-upload menu, turns on Think, and provides experimental Think compatibility for project chats.
 // @author       free6589
 // @match        https://chatgpt.com/*
 // @match        https://chat.openai.com/*
@@ -14,7 +14,7 @@
 (() => {
     'use strict';
 
-    const VERSION = '0.01';
+    const VERSION = '0.02';
     const HIDDEN_ATTR = 'data-chgpt-hidden';
     const LOG_PREFIX = '[ChatGPT Ad Cleaner]';
 
@@ -72,11 +72,64 @@
         return changed;
     }
 
+    function getProjectGizmoId(url) {
+        try {
+            const requestUrl = new URL(String(url || ''), location.origin);
+            const gizmoId = requestUrl.searchParams.get('gizmo_id') || '';
+
+            // ChatGPT project IDs use the g-p- prefix. Do not change the
+            // eligibility response for ordinary custom GPT conversations.
+            if (
+                !requestUrl.pathname.endsWith('/backend-api/system_hints') ||
+                requestUrl.searchParams.get('mode') !== 'basic' ||
+                !/^g-p-[a-z0-9_-]+$/i.test(gizmoId)
+            ) {
+                return null;
+            }
+
+            return gizmoId;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function enableProjectThinkingHint(data, url) {
+        if (!getProjectGizmoId(url) || !data || !Array.isArray(data.system_hints)) {
+            return false;
+        }
+
+        const reasonHint = data.system_hints.find(
+            item => item && item.system_hint === 'reason'
+        );
+
+        if (!reasonHint || !Array.isArray(reasonHint.required_conversation_modes)) {
+            return false;
+        }
+
+        if (reasonHint.required_conversation_modes.includes('gizmo_interaction')) {
+            return false;
+        }
+
+        // The captured project response advertises "reason" for
+        // primary_assistant only, while project turns use gizmo_interaction.
+        // Extend the client-side eligibility list so the native Think control
+        // can appear. The server may still reject or ignore this combination.
+        reasonHint.required_conversation_modes = [
+            ...reasonHint.required_conversation_modes,
+            'gizmo_interaction'
+        ];
+
+        return true;
+    }
+
     function shouldPatch(url) {
-        // Upload-block metadata is needed from the init response only. Matching
-        // every /conversation/* URL also parses large saved-conversation JSON
-        // responses for no reason, which can hurt long-chat load performance.
-        return /\/backend-api\/conversation\/init(?:[?#]|$)/.test(String(url || ''));
+        const value = String(url || '');
+        const path = value.split('?')[0].split('#')[0];
+
+        // Keep the upload patch scoped to conversation init. The Think
+        // compatibility patch is limited to basic-mode project requests.
+        return path.endsWith('/backend-api/conversation/init') ||
+            !!getProjectGizmoId(value);
     }
 
     const originalFetch = window.fetch;
@@ -99,7 +152,18 @@
                 }
 
                 return response.clone().json().then(data => {
-                    if (!stripUploadBlock(data)) {
+                    let changed = false;
+                    const path = String(url || '').split('?')[0].split('#')[0];
+
+                    if (path.endsWith('/backend-api/conversation/init')) {
+                        changed = stripUploadBlock(data) || changed;
+                    }
+
+                    if (getProjectGizmoId(url)) {
+                        changed = enableProjectThinkingHint(data, url) || changed;
+                    }
+
+                    if (!changed) {
                         return response;
                     }
 
@@ -1043,10 +1107,33 @@
         'suy ngh\u0129', '\u0E04\u0E34\u0E14', '\u062A\u0641\u0643\u064A\u0631', '\u0938\u094B\u091A\u0947\u0902'
     ];
 
-    const thinkAttempts = new WeakMap();
+    // Remember controls already handled so a manual opt-out is not undone.
+    const thinkHandled = new WeakSet();
+
+    function isComposerThinkButton(button) {
+        if (button.closest('form')) return true;
+
+        const editors = document.querySelectorAll('[contenteditable="true"], #prompt-textarea');
+        const editor = Array.from(editors).find(item => item.getClientRects().length);
+
+        if (!editor) return false;
+
+        let parent = button.parentElement;
+        let depth = 0;
+
+        while (parent && parent !== document.body && depth < 8) {
+            if (parent.contains(editor)) return true;
+            parent = parent.parentElement;
+            depth++;
+        }
+
+        return false;
+    }
 
     function autoEnableThinking() {
-        const buttons = document.querySelectorAll('form button[aria-pressed="false"]');
+        // The project composer can render Think outside a <form>. Search all
+        // pressed-state buttons, then anchor the exact Think label to the editor.
+        const buttons = document.querySelectorAll('button[aria-pressed="false"]');
 
         for (const btn of buttons) {
             if (!btn.getClientRects().length) continue;
@@ -1056,18 +1143,18 @@
 
             if (!text) continue;
             if (THINK_LABELS.indexOf(text) === -1) continue;
-            if (!btn.closest('form')) continue;
+            if (!isComposerThinkButton(btn)) continue;
 
-            const attempts = thinkAttempts.get(btn) || 0;
-
-            if (attempts >= 3) continue;
-
-            thinkAttempts.set(btn, attempts + 1);
+            if (thinkHandled.has(btn)) continue;
 
             try {
+                // Mark before click because React may synchronously re-render.
+                thinkHandled.add(btn);
                 btn.click();
-                console.info(LOG_PREFIX + ' thinking mode on');
-            } catch (e) { /* ignore */ }
+                console.info(LOG_PREFIX + ' Think toggle clicked');
+            } catch (e) {
+                thinkHandled.delete(btn);
+            }
         }
     }
 

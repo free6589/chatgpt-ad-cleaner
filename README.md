@@ -14,18 +14,19 @@ It works whatever language your ChatGPT is set to: the ad blocks are found by wh
 
 ---
 
-## Version 0.01 — First public release
+## Version 0.02 — Project Think compatibility
 
-This is the first public release of ChatGPT Ad Cleaner.
+This release builds on the first public version of ChatGPT Ad Cleaner.
 
 - Hide upgrade prompts, free-trial buttons, offer buttons, the Free plan badge, upgrade cards and the ChatGPT disclaimer.
 - Recognize common offer/upgrade labels in multiple interface languages.
-- Automatically enable the Think button in a new chat when a matching toggle is available.
+- Automatically enable the Think button when an eligible composer exposes it.
+- Experimental project-chat compatibility: when a `g-p-...` project response includes the `reason` hint, extend the browser-side `required_conversation_modes` list to include `gizmo_interaction`, allowing the native Think control to appear. This does not guarantee that the server accepts the hint in project conversations.
 - Restore the normal “Upload from computer” menu item when the page replaces it with an upload-upgrade prompt. This does not change the server-side upload limit.
 - Reduce unnecessary page work: skip text-only streaming mutations, debounce scans, watch DOM insertions rather than every style change, limit diagnostic counts, and inspect only the conversation initialization response for upload-limit metadata.
 - Provide __chgptCleaner.pause() and __chgptCleaner.resume() as emergency controls.
 
-This release has passed static JavaScript syntax validation. Performance has not yet been measured in a controlled real-browser comparison.
+The userscript passes JavaScript syntax validation. Project Think compatibility is experimental and still requires a live project-chat request/response test. Performance has not yet been measured in a controlled real-browser comparison.
 
 ---
 
@@ -47,11 +48,11 @@ Everything else stays exactly the same: your chats, the message box, the sidebar
 
 ## Also: turns "Think" on for you
 
-Free accounts have a **Think** button in the message box, and every new chat starts with it switched off.
+Free accounts may have a **Think** button in the message box. The add-on switches it on automatically when ChatGPT exposes the control.
 
-The add-on switches it on automatically, so your first message already uses the slower, more careful reasoning mode.
+For ChatGPT project chats, version 0.02 also applies an experimental browser-side compatibility override so the Think control can appear when the project response includes the `reason` hint. The server may still reject or ignore that hint for project conversations, so verify it with a short test message before relying on it.
 
-If you turn it off yourself, it stays off for that chat — the script only sets it once.
+If you turn it off yourself, the script leaves that button alone. A newly rendered composer control can receive a fresh automatic attempt.
 
 ---
 
@@ -87,7 +88,7 @@ If you want to be sure the script is loaded, press `F12`, open the **Console** t
 document.documentElement.dataset.chgptScript
 ```
 
-It should print the version number, for example `"0.01"`.
+It should print the version number, for example `"0.02"`.
 
 ---
 
