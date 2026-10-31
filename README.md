@@ -16,7 +16,7 @@ It works whatever language your ChatGPT is set to: the ad blocks are found by wh
 
 ## Version 0.02 — Project Think compatibility
 
-This is the first public release of ChatGPT Ad Cleaner.
+This release builds on the first public version of ChatGPT Ad Cleaner.
 
 - Hide upgrade prompts, free-trial buttons, offer buttons, the Free plan badge, upgrade cards and the ChatGPT disclaimer.
 - Recognize common offer/upgrade labels in multiple interface languages.
@@ -52,7 +52,7 @@ Free accounts may have a **Think** button in the message box. The add-on switche
 
 For ChatGPT project chats, version 0.02 also applies an experimental browser-side compatibility override so the Think control can appear when the project response includes the `reason` hint. The server may still reject or ignore that hint for project conversations, so verify it with a short test message before relying on it.
 
-If you turn it off yourself, the script is intended to leave it off for that composer.
+If you turn it off yourself, the script leaves that button alone. A newly rendered composer control can receive a fresh automatic attempt.
 
 ---
 
